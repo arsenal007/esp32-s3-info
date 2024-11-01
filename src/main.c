@@ -9,6 +9,8 @@
 #include <esp_idf_version.h>
 #include <esp_mac.h>
 #include <esp_clk_tree.h>
+#include <esp_littlefs.h>
+
 
 void TaskPrintInfo(void *parameter) {
     for (;;) { // Infinite loop for the task
@@ -59,7 +61,17 @@ void TaskPrintInfo(void *parameter) {
 
         printf("SDK Version: %s\n", esp_get_idf_version());
 
-        vTaskDelay(1000 / portTICK_PERIOD_MS); // 1-second delay
+        // LittleFS Information
+        size_t total_bytes, used_bytes;
+        esp_err_t ret = esp_littlefs_info("storage", &total_bytes, &used_bytes);
+        if (ret == ESP_OK) {
+            printf("LittleFS Total Size: %d KB\n", total_bytes / 1024);
+            printf("LittleFS Used Size: %d KB\n", used_bytes / 1024);
+        } else {
+            printf("Failed to retrieve LittleFS info (%s)\n", esp_err_to_name(ret));
+        }
+
+        vTaskDelay(5000 / portTICK_PERIOD_MS); // 5-second delay
     }
 }
 
@@ -72,15 +84,30 @@ void app_main() {
         printf("PSRAM initialized successfully.\n");
         printf("PSRAM Size: %u MB\n", esp_psram_get_size() / (1024 * 1024));
     } else {
-        printf("Failed to initialize PSRAM. Error code: 0x%x\n", psram_init_result);
+        printf("Failed to initialize PSRAM. Error code: (%s)\n", esp_err_to_name(psram_init_result));
         printf("Please check PSRAM settings in menuconfig and verify hardware setup.\n");
     }
+
+    printf("Initializing LittleFS\n");
+
+    esp_vfs_littlefs_conf_t conf = {
+        .base_path = "/littlefs",
+        .partition_label = "storage",
+        .format_if_mount_failed = true
+    };
+
+    esp_err_t ret = esp_vfs_littlefs_register(&conf);
+    if (ret != ESP_OK) {
+        printf("Failed to mount LittleFS (%s)\n", esp_err_to_name(ret));
+        return;
+    }
+    printf("LittleFS mounted successfully\n");
 
     // Creating a task to print board information
     xTaskCreate(
         TaskPrintInfo,   // Function to be executed by the task
         "TaskPrintInfo", // Task name (for debugging)
-        2048,            // Stack size in bytes
+        4096,            // Stack size in bytes
         NULL,            // Parameters to pass to the task (we have none)
         1,               // Task priority
         NULL             // Task handle (can be left NULL)
