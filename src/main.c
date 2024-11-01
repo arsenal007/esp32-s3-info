@@ -10,6 +10,8 @@
 #include <esp_mac.h>
 #include <esp_clk_tree.h>
 #include <esp_littlefs.h>
+#include <driver/rmt.h>
+#include <led_strip.h>
 
 
 void TaskPrintInfo(void *parameter) {
@@ -75,6 +77,46 @@ void TaskPrintInfo(void *parameter) {
     }
 }
 
+#define LED_PIN 38           // Пін підключення WS2812
+#define LED_RMT_CHANNEL RMT_CHANNEL_0  // Канал RMT
+#define LED_NUM 1            // Кількість світлодіодів у стрічці
+
+static led_strip_t *strip;
+
+void TaskLedControl(void *parameter) {
+    // Ініціалізація об'єкта для керування світлодіодами
+    strip = led_strip_init(LED_RMT_CHANNEL, LED_PIN, LED_NUM);
+    strip->clear(strip, 100);  // Очищення (вимкнення) світлодіодів
+
+    while (1) {
+        // Встановлення червоного кольору
+        strip->set_pixel(strip, 0, 255, 0, 0);
+        strip->refresh(strip, 100);
+        vTaskDelay(5000 / portTICK_PERIOD_MS);
+
+        // Встановлення зеленого кольору
+        strip->set_pixel(strip, 0, 0, 255, 0);
+        strip->refresh(strip, 100);
+        vTaskDelay(5000 / portTICK_PERIOD_MS);
+
+        // Встановлення синього кольору
+        strip->set_pixel(strip, 0, 0, 0, 255);
+        strip->refresh(strip, 100);
+        vTaskDelay(5000 / portTICK_PERIOD_MS);
+    }
+}
+
+// Розмір стека для кожного завдання
+#define STACK_SIZE 4096
+
+// Оголошення масивів для статичної алокації пам'яті для TaskLedControl
+StaticTask_t ledControlTaskBuffer;
+StackType_t ledControlStack[STACK_SIZE];
+
+// Оголошення масивів для статичної алокації пам'яті для TaskPrintInfo
+StaticTask_t printInfoTaskBuffer;
+StackType_t printInfoStack[STACK_SIZE];
+
 void app_main() {
     printf("Program Starting...\n");
 
@@ -103,13 +145,27 @@ void app_main() {
     }
     printf("LittleFS mounted successfully\n");
 
-    // Creating a task to print board information
-    xTaskCreate(
-        TaskPrintInfo,   // Function to be executed by the task
-        "TaskPrintInfo", // Task name (for debugging)
-        4096,            // Stack size in bytes
-        NULL,            // Parameters to pass to the task (we have none)
-        1,               // Task priority
-        NULL             // Task handle (can be left NULL)
+    // Створення статичного завдання для контролю LED на ядрі 1
+ /*   xTaskCreateStaticPinnedToCore(
+        TaskLedControl,                // Функція завдання
+        "TaskLedControl",              // Назва завдання
+        STACK_SIZE,                    // Розмір стека
+        NULL,                          // Параметри для завдання
+        1,                             // Пріоритет завдання
+        ledControlStack,               // Стек пам'яті
+        &ledControlTaskBuffer,         // Обробник пам'яті для TCSB
+        0                              // Ядро для виконання завдання
+    );*/
+
+    // Створення статичного завдання для виведення інформації на будь-якому доступному ядрі
+    xTaskCreateStaticPinnedToCore(
+        TaskPrintInfo,                 // Функція завдання
+        "TaskPrintInfo",               // Назва завдання
+        STACK_SIZE,                    // Розмір стека
+        NULL,                          // Параметри для завдання
+        1,                             // Пріоритет завдання
+        printInfoStack,                // Стек пам'яті
+        &printInfoTaskBuffer,          // Обробник пам'яті для TCSB
+        0                              // Ядро для виконання завдання
     );
 }
