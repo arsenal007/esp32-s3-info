@@ -1,0 +1,24 @@
+# PlatformIO
+.pio/
+.vscode/
+build/
+dist/
+
+# ESP-IDF specific files
+*.elf
+*.bin
+sdkconfig
+sdkconfig.old
+
+# Temporary files
+*.log
+*.tmp
+*.swp
+*.swo
+*.bak
+
+# MacOS
+.DS_Store
+
+# Windows
+Thumbs.db
